@@ -3,7 +3,7 @@
   "displayName": "C2R - C/C++ to Rust Transpiler",
   "description": "C/C++ to Rust Transpiler VSCode Plugin",
   "version": "1.0.1",
-  "pulisher": "",
+  "publisher": "RichardWang",
   "author": "Richard Wang",
   "license": "MIT",
   "icon": "icon.png",
@@ -15,12 +15,18 @@
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages"
+  ],
+  "keywords": [
+    "C/C++",
+    "Rust",
+    "Transpiler",
+    "VSCode Plugin"
   ],
   "files": [
     "icon.png",
-    "src",
-    "icons"
+    "out",
+    "src"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
@@ -46,6 +52,14 @@
           "id": "c2r-sidebar-view",
           "title": "C/C++ to Rust",
           "icon": "icon.png"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "c2r.c2rSart",
+          "when": "true"
         }
       ]
     }

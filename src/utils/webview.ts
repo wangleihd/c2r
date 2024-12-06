@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from 'fs';
 import { sendToFile2 } from './api';
-import {getNonce} from "./tools";
+import { getNonce } from "./tools";
 
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
@@ -25,7 +25,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             enableScripts: true,
             localResourceRoots: [this.context.extensionUri],
         };
-        this.rootDir =  await this.generateFileTree();
+        this.rootDir = await this.generateFileTree();
 
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
@@ -90,17 +90,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     const refreshedTree = await this.generateFileTree();
                     webviewView.webview.postMessage({
                         command: "updateOutputTree",
-                        fileTree: refreshedTree,
+                        fileTree: refreshedTree
                     });
                     break;
             }
-        });
-    }
+        });    }
 
     private async showFileList(webviewView: vscode.WebviewView) {
 
-        if(this.inputDirectory ){
-            this.inputFileTree = await this.inputFileTreeFun();
+        if (this.inputDirectory) {
+            this.inputFileTree = await this.inputFileTreeFun(webviewView.webview);
         }
         if (this.outputDirectory) {
             this.outputFileTree = await this.outputFileTreeFun();
@@ -130,25 +129,46 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
 
     private async simulateFileProcessing(inputDir: string, outputDir: string): Promise<void> {
-        vscode.window.showInformationMessage(`Processing files start ...`);
-        const files = fs.readdirSync(inputDir);
-        for (const file of files) {
-            const filePath = path.join(inputDir, file);
-            const fileContent = fs.createReadStream(filePath);
-            const formData = new FormData();
+        vscode.window.showInformationMessage(`Processing files start...`);
+        setTimeout(() => {
+            
+              vscode.window.showInformationMessage('');
+            
+          }, 3000);
+        let timer: NodeJS.Timeout;
+        let show: NodeJS.Timeout;
+        let progress: number = 0;  // 原进度
 
-            // Append file to formData
-            formData.append('file', fileContent, file);
+        const totalTime = 5000;  // 总时长，假设为 10 秒
+        const interval = 800;  // 每隔 100 毫秒更新一次进度
 
-            // Send file to backend
-            await this.postFileToServer(filePath, formData as any);
-        }
-        vscode.window.showInformationMessage(`Processing completed.`);
-    }
-    private async postFileToServer(filename: string, fileContent: Buffer): Promise<void>   {
+        const progressBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+        progressBar.text = `转换进度: ${progress}%`;
+        progressBar.show();
+
+        timer = setInterval(() => {
+            progress++;
+            if (progress > 100) {
+                clearInterval(timer);
+                progress = 100;
+                progressBar.text = '转换完成';
+                vscode.window.showInformationMessage(`Processing completed.`);
+                show = setInterval(() => {
+                    progressBar.dispose();
+                    clearInterval(timer);
+                    clearInterval(show);
+                }, totalTime);
+
+            } else {
+                progressBar.text = `转换进度: ${progress}%`;
+            }
+        }, interval);
+    } 
+    
+    private async postFileToServer(filename: string, fileContent: Buffer): Promise<void> {
         try {
             const response = await sendToFile2(fileContent);
-    
+
             if (response.status === 200) {
                 console.log(`文件 ${filename} 发送成功`);
             } else {
@@ -156,7 +176,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             }
         } catch (error) {
             console.error(`文件 ${filename} 发送失败：`, error);
-        }    
+        }
     }
 
     private updateWebview(): void {
@@ -191,15 +211,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             ([_, type]) => type === vscode.FileType.Directory
         );
         const files = entries.filter(([_, type]) => type === vscode.FileType.File);
-
         // 构建目录部分
         const directoryTree = await Promise.all(
             directories.map(async ([name]) => {
                 const fullPath = path.join(dir, name);
                 const subTree = await this.buildFileTree(fullPath, depth + 1);
+                let iconClass = 'fa-solid fa-folder dir';
+                if (this.isDirectoryOpen(fullPath)) {
+                    iconClass = 'fa-solid fa-folder-open dir';
+                }
                 return `
                     <details onclick="handleDetailsClick()" class="directory">
-                        <summary><span class="icon folder-icon"></span>${name}</summary>
+                        <summary><span class="icondir ${iconClass}"></span>
+                        <span class="dirname">${name}</span></summary>
                         ${subTree}
                     </details>
                 `;
@@ -208,31 +232,47 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         // 构建文件部分
         const fileTree = files.map(([name]) => {
+            const ext = path.extname(name).toLowerCase().slice(1);
+            let iconClass = 'fa-solid fa-file f';
+            if (ext === 'c' || ext === 'cpp') {
+                iconClass = 'fa-solid fa-c c';
+            } else if (ext === 'h') {
+                iconClass = 'fa-solid fa-h h';
+            } else if (ext === 'rs') {
+                iconClass = 'fa-brands fa-rust rust';
+            }
             const fullPath = path.join(dir, name);
             return `
                 <div class="file" data-path="${fullPath}">
-                    <span class="icon file-icon"></span>${name}
+                    <span class="icon ${iconClass}"></span>
+                    ${name}
                 </div>
             `;
         });
-
         // 合并目录和文件部分
         return [...directoryTree, ...fileTree].join("");
     }
 
-    private async inputFileTreeFun(): Promise<string> {
+    private isDirectoryOpen(fullPath: string): boolean {
+        // 根据您的逻辑来判断目录是否打开，这里只是一个示例的假实现
+        return false;
+    }
+
+
+    private async inputFileTreeFun(webview: vscode.Webview): Promise<string> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
             this.currentWorkspaceRoot = workspaceFolders[0].uri.fsPath;
         }
-        const fileTree = await this.inputBuildFileTree(this.input);
+        const fileTree = await this.inpoutBuildFileTree(this.input);
         if (this.currentWorkspaceRoot && this.inputDirectory.startsWith(this.currentWorkspaceRoot)) {
             this.inputDirectory = path.relative(this.currentWorkspaceRoot, this.input);
         }
         return fileTree;
     }
 
-    private async inputBuildFileTree(dir: string, depth = 0): Promise<string> {
+
+    private async inpoutBuildFileTree(dir: string, depth = 0): Promise<string> {
         // 读取目录内容并过滤掉隐藏文件和目录
         const entries = (
             await vscode.workspace.fs.readDirectory(vscode.Uri.file(dir))
@@ -243,15 +283,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             ([_, type]) => type === vscode.FileType.Directory
         );
         const files = entries.filter(([_, type]) => type === vscode.FileType.File);
-
         // 构建目录部分
         const directoryTree = await Promise.all(
             directories.map(async ([name]) => {
                 const fullPath = path.join(dir, name);
-                const subTree = await this.buildFileTree(fullPath, depth + 1);
+                const subTree = await this.inpoutBuildFileTree(fullPath, depth + 1);
+                let iconClass = 'fa-solid fa-folder dir';
+                if (this.isDirectoryOpen(fullPath)) {
+                    iconClass = 'fa-solid fa-folder-open dir';
+                }
                 return `
                     <details onclick="handleDetailsClick()" class="directory">
-                        <summary><span class="icon folder-icon"></span>${name}</summary>
+                        <summary><span class="icondir ${iconClass}"></span>
+                        <span class="dirname">${name}</span></summary>
                         ${subTree}
                     </details>
                 `;
@@ -260,17 +304,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         // 构建文件部分
         const fileTree = files.map(([name]) => {
+            const ext = path.extname(name).toLowerCase().slice(1);
+            let iconClass = 'fa-solid fa-file f';
+            if (ext === 'c' || ext === 'cpp') {
+                iconClass = 'fa-solid fa-c c';
+            } else if (ext === 'h') {
+                iconClass = 'fa-solid fa-h h';
+            } else if (ext === 'rs') {
+                iconClass = 'fa-brands fa-rust rust';
+            }
             const fullPath = path.join(dir, name);
             return `
                 <div class="file" data-path="${fullPath}">
-                    <span class="icon file-icon"></span>${name}
+                    <span class="icon ${iconClass}"></span>
+                    ${name}
                 </div>
             `;
         });
-
         // 合并目录和文件部分
         return [...directoryTree, ...fileTree].join("");
     }
+
 
     private async outputFileTreeFun(): Promise<string> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -294,15 +348,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             ([_, type]) => type === vscode.FileType.Directory
         );
         const files = entries.filter(([_, type]) => type === vscode.FileType.File);
-
         // 构建目录部分
         const directoryTree = await Promise.all(
             directories.map(async ([name]) => {
                 const fullPath = path.join(dir, name);
-                const subTree = await this.buildFileTree(fullPath, depth + 1);
+                const subTree = await this.outputBuildFileTree(fullPath, depth + 1);
+                let iconClass = 'fa-solid fa-folder dir';
+                if (this.isDirectoryOpen(fullPath)) {
+                    iconClass = 'fa-solid fa-folder-open dir';
+                }
                 return `
                     <details onclick="handleDetailsClick()" class="directory">
-                        <summary><span class="icon folder-icon"></span>${name}</summary>
+                        <summary><span class="icondir ${iconClass}"></span>
+                        <span class="dirname">${name}</span></summary>
                         ${subTree}
                     </details>
                 `;
@@ -311,14 +369,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         // 构建文件部分
         const fileTree = files.map(([name]) => {
+            const ext = path.extname(name).toLowerCase().slice(1);
+            let iconClass = 'fa-solid fa-file f';
+            if (ext === 'c' || ext === 'cpp') {
+                iconClass = 'fa-solid fa-c c';
+            } else if (ext === 'h') {
+                iconClass = 'fa-solid fa-h h';
+            } else if (ext === 'rs') {
+                iconClass = 'fa-brands fa-rust rust';
+            }
             const fullPath = path.join(dir, name);
             return `
                 <div class="file" data-path="${fullPath}">
-                    <span class="icon file-icon"></span>${name}
+                    <span class="icon ${iconClass}"></span>
+                    ${name}
                 </div>
             `;
         });
-
         // 合并目录和文件部分
         return [...directoryTree, ...fileTree].join("");
     }
@@ -333,7 +400,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(`Directory created: ${newDirPath}`);
     }
 
-   private getHtmlForWebview(
+    private getHtmlForWebview(
         webview: vscode.Webview,
         inputFileTree: string,
         outputFileTree: string,
@@ -347,6 +414,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>File Explorer</title>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css">
             <style>
                 body {
                     font-family: Arial, sans-serif;
@@ -357,32 +425,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     height: 100vh;
                     overflow: hidden;
                 }
-                #container {
-                    height: 45%; /* 固定高度为 40% */
-                    overflow-y: auto; /* 超出内容滚动 */
-                    margin: 0 5px;
-                    padding: 5px;
-                    border-radius: 3px;
-                    background-color: #404040;
-                }
-                #container::-webkit-scrollbar {
-                    width: 8px;
-                }
-                #container::-webkit-scrollbar-thumb {
-                    background-color: #888;
-                    border-radius: 4px;
-                }
-                #container::-webkit-scrollbar-thumb:hover {
-                    background-color: #555;
-                }
-
                 #out-container {
-                    height: 45%; /* 固定高度为 40% */
                     overflow-y: auto; /* 超出内容滚动 */
-                    margin: 0 5px;
-                    padding: 5px;
-                    border-radius: 3px;
-                    background-color: #303030;
                 }
                 #out-container::-webkit-scrollbar {
                     width: 8px;
@@ -406,38 +450,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     margin-bottom: 1px;
                     background-color: #303030;
                 }
+
                 .file {
+                    font-size: 12px;
                     cursor: pointer;
-                    color: #dedede;
-                    margin-left: 10px;
-                    margin-bottom: 1px;
+                    color: #ccc;
                 }
+
                 .file:hover {
-                    text-decoration: underline;
-                }
-                .file:focus {
-                    
-                } 
+                   color: #eee;
+                 }
                 .file.input-selected {
                     font-weight: bold;
                     color: #7B76FFFF;
                 }
-
                 .file.output-selected {
                     font-weight: bold;
                     color: #FE8930FF;
-                }
-                .directory {
-                    padding-left: 10px
-                }
-                .directory > summary {
-                    cursor: pointer;
-                    font-weight: bold;
-                    margin-bottom: 1px;
-                    color: #dedede;
-                }
-                .directory > summary:hover {
-                    text-decoration: underline;
                 }
                 .section {
                     display: flex;
@@ -450,71 +479,193 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     background-color: #ccc;
                     padding: 0 3px;
                 }
-                .path-display {
+
+                #processButton{
+                    background: #5E59FBFF;
+                    color: #fff;
+                    padding: 0 20px;
+                }
+                
+                .icon {
+                    display: inline-block;
+                    vertical-align: middle;
+                    margin-right: 3px;
                     margin-top: 3px;
-                    font-size: 12px;
+                    margin-bottom: 3px;
+                    margin-left: 20px;
+                }
+                .c {
+                    color: #59ADFBFF;
+                }
+                .h {
+                    color: #A089F4FF;
+                }
+                .rust {
+                    color: #FE8930FF;
+                }
+                .f {
                     color: #dedede;
                 }
-                .directory {
-                    padding-left: 10px
+                .icondir {
+                    display: inline-block;
+                    vertical-align: middle;
+                    margin: 3px;
                 }
-                .directory > summary {
+                .dir {
+                    color:  #FEB807FF
                 }
+                
+                .dirname {
+                    color: #C8C8C8C8;
+                    font-size: 12px;
+                }
+                .dirname:hover {
+                    color: #eee;
+                    font-weight: bold;
+                }
+                
+                /* 修改 summary 样式 */
                 .directory {
                     padding-left: 10px
                 }
                 .directory > summary {
                     cursor: pointer;
                     font-weight: bold;
-                    margin-bottom: 1px;
-                    color: #;
-                }
-                #processButton{
-                    width: 40%;
-                    background: #5E59FBFF;
-                    color: #fff;
-                }
-                #selectInputButton{
-                    width: 28%;
-                }
-                #selectOutputButton {
-                    width: 28%;
                 }
                 .directory > summary:hover {
-                    text-decoration: underline;
+                    color: #eee;
+                    font-weight: bold;
                 }
-                .icon {
-                    display: inline-block;
-                    vertical-align: middle;
-                    margin-right: 2px;
+                .directory > .file {
+                    margin-left: 10px;
                 }
-                .folder-icon {
-                    background: url('https://example.com/folder-icon.png') no-repeat center center;
-                    background-size: contain;
+
+                .main {
+                    margin: 0 10px;
+                    height: 100%;
                 }
-                .file-icon {
-                    background: url('https://example.com/file-icon.png') no-repeat center center;
-                    background-size: contain;
+                .btn {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    text-align: center;
+                    margin-bottom: 10px;
+                }
+                #selectInputButton {
+                    width: 35%;
+                    font-size: 12px;
+                }
+                .btniconc {
+                    color: #59ADFBFF;
+                    margin: 5px;
+                }
+                .toicon {
+                    width: 5%;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+                .btniconr {
+                    color: #FE8930FF;
+                    margin: 5px;
+                }
+                #selectOutputButton {
+                    width: 35%;
+                    font-size: 12px;
+                }
+
+                .input {
+                    height: 50%;
+                    display: flex;
+                    flex-direction: column;
+                    background-color: #303030;
+                    border-radius: 6px;
+                    border: 1px solid #444;
+                }
+                .inputdir {
+                    margin: 8px;
+                    font-size: 12px;
+                    height: 20px;
+                }
+                .path-display {
+                    margin: 3px;
+                    font-size: 10px;
+                    color: #dedede;
+                }
+                .inputmiddle {
+                    flex-grow: 1;
+                    overflow-y: auto;
+                }
+                .tobtn{
+                    height: 20px;
+                    text-align: end;
+                    margin: 8px;
+                    margin-bottom: 10px;
+                }
+
+                #container {
+                    overflow-y: auto; /* 超出内容滚动 */
+                }
+                #container::-webkit-scrollbar {
+                    width: 8px;
+                }
+                #container::-webkit-scrollbar-thumb {
+                    background-color: #888;
+                    border-radius: 4px;
+                }
+                #container::-webkit-scrollbar-thumb:hover {
+                    background-color: #555;
+                }
+                
+
+                .line {
+                    margin: 10px 0;
+                    height: 1px;
+                    background-color: #666;
+                }
+                
+                .output {
+                    height: 40%;
+                    display: flex;
+                    flex-direction: column;
+                    background-color: #303030;
+                    border-radius: 6px;
+                    border: 1px solid #444;
+                }
+                .bside{
+                    height: 8px;
+                    margin-top: 10px;
                 }
             </style>
         </head>
         <body>
-            <div class="text">
-                <div>输入目录:</div>
-                <div id="inputPath" class="path-display">No directory selected</div>
+            <div class="main">
+                <div class="btn">
+                    <button id="selectInputButton"><i class="btniconc fa-solid fa-c"></i>输入目录</button>
+                    <div class="toicon">
+                    <i class="fa-solid fa-right-long"></i>
+                    </div>
+                    <button id="selectOutputButton"><i class="btniconr fa-brands fa-rust"></i>输出目录</button> 
+                </div>
+                <div class="input">
+                    <div class="inputdir">输入目录:<span id="inputPath" class="path-display">No directory selected</span></div>
+                    <div class="inputmiddle">
+                        <div id="container">${inputFileTree}</div>
+                    </div>
+                    <div class="tobtn"><button id="processButton" disabled>转换</button></div>
+                </div>
+                <div class="line"></div>
+                <div class="output">
+                <div class="inputdir">输出目录:<span id="outputPath" class="path-display">No directory selected</span></div>
+                    <div class="inputmiddle">
+                    <div id="out-container">${outputFileTree}</div>
+                    </div>
+                    <div class="bside"></div>
+                </div>
             </div>
-            <div id="container">${inputFileTree}</div>
-            <div class="section">
-                <button id="selectInputButton">选择输入目录</button>
-                <button id="processButton" disabled>转成 Rust </button>
-                <button id="selectOutputButton">选择输出目录</button>
-            </div>
-            <div class="out-text">
-            <div>输出目录:</div>
-            <div id="outputPath" class="path-display">No directory selected</div>
-            </div>
-            <div id="out-container">${outputFileTree}</div>
 
+
+            
+            
 
             <script nonce="${nonce}">
                 const vscode = acquireVsCodeApi();
@@ -590,7 +741,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 }
             </script>
         </body>
-        </html>`;
+        </html>
+        `;
     }
-    
 }

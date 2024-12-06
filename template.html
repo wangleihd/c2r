@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Explorer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,32 +15,8 @@
             height: 100vh;
             overflow: hidden;
         }
-        #container {
-            height: 45%; /* 固定高度为 40% */
-            overflow-y: auto; /* 超出内容滚动 */
-            margin: 0 5px;
-            padding: 5px;
-            border-radius: 3px;
-            background-color: #404040;
-        }
-        #container::-webkit-scrollbar {
-            width: 8px;
-        }
-        #container::-webkit-scrollbar-thumb {
-            background-color: #888;
-            border-radius: 4px;
-        }
-        #container::-webkit-scrollbar-thumb:hover {
-            background-color: #555;
-        }
-
         #out-container {
-            height: 45%; /* 固定高度为 40% */
             overflow-y: auto; /* 超出内容滚动 */
-            margin: 0 5px;
-            padding: 5px;
-            border-radius: 3px;
-            background-color: #303030;
         }
         #out-container::-webkit-scrollbar {
             width: 8px;
@@ -64,39 +40,28 @@
             margin-bottom: 1px;
             background-color: #303030;
         }
-        .file {
+        .filename {
             cursor: pointer;
             color: #dedede;
             margin-left: 10px;
             margin-bottom: 1px;
         }
-        .file:hover {
+        .filename:hover {
             text-decoration: underline;
         }
-        .file:focus {
+        .filename:focus {
             
         } 
-        .file.input-selected {
+        .filename.input-selected {
             font-weight: bold;
             color: #7B76FFFF;
         }
 
-        .file.output-selected {
+        .filename.output-selected {
             font-weight: bold;
             color: #FE8930FF;
         }
-        .directory {
-            padding-left: 10px
-        }
-        .directory > summary {
-            cursor: pointer;
-            font-weight: bold;
-            margin-bottom: 1px;
-            color: #dedede;
-        }
-        .directory > summary:hover {
-            text-decoration: underline;
-        }
+
         .section {
             display: flex;
             align-items: center;
@@ -108,88 +73,205 @@
             background-color: #ccc;
             padding: 0 3px;
         }
-        .path-display {
-            margin-top: 3px;
-            font-size: 12px;
-            color: #dedede;
-        }
+
         #processButton{
-            width: 40%;
             background: #5E59FBFF;
             color: #fff;
+            padding: 0 20px;
         }
-        #selectInputButton{
-            width: 28%;
-        }
-        #selectOutputButton {
-            width: 28%;
-        }
+        
         .icon {
             display: inline-block;
             vertical-align: middle;
-            margin-right: 2px;
+            margin-right: 6px;
+            margin-top: 3px;
+            margin-bottom: 3px;
+        }
+        .c {
+            color: #59ADFBFF;
+        }
+        .h {
+            color: #8884F6FF;
+        }
+        .rust {
+            color: #FE8930FF;
+        }
+        .f {
+            color: #dedede;
+        }
+        .icondir {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 3px;
+        }
+        .dir {
+            color:  #FEB807FF
+        }
+        .filename {
+            color: #dedede;
+            font-size: 12px;
+        }
+        .dirname {
+            color: #dcdcdc;
+            font-size: 12px;
         }
         
-        .folder-icon {
-            background: url('../icons/default_folder.svg') no-repeat center center;
-            background-size: contain;
-        }
-        .file-icon {
-            background: url('https://example.com/file-icon.png') no-repeat center center;
-            background-size: contain;
-        }
         /* 修改 summary 样式 */
-        summary {
+        .directory {
+            padding-left: 10px
+        }
+        .directory > summary {
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .directory > summary:hover {
+            text-decoration: none;
+        }
+        .directory > .file {
+            margin-left: 10px;
+        }
+
+        .main {
+            margin: 0 10px;
+            height: 100%;
+        }
+        .btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        #selectInputButton {
+            width: 35%;
+            font-size: 12px;
+        }
+        .btniconc {
+            color: #59ADFBFF;
+            margin: 5px;
+        }
+        .toicon {
+            width: 10%;
             font-size: 18px;
             font-weight: bold;
-            color: #333;
-            background-color: #f4f4f4;
-            padding: 8px 16px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            cursor: pointer;
+        }
+        .btniconr {
+            color: #FE8930FF;
+            margin: 5px;
+        }
+        #selectOutputButton {
+            width: 35%;
+            font-size: 12px;
+        }
+
+        .input {
+            height: 50%;
             display: flex;
-            align-items: center; /* 垂直居中对齐图标 */
+            flex-direction: column;
+            background-color: #303030;
+            border-radius: 6px;
+            border: 1px solid #444;
+        }
+        .inputdir {
+            margin: 8px;
+            font-size: 12px;
+            height: 20px;
+        }
+        .path-display {
+            margin: 3px;
+            font-size: 10px;
+            color: #dedede;
+        }
+        .inputmiddle {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .tobtn{
+            height: 20px;
+            text-align: end;
+            margin: 8px;
+            margin-bottom: 10px;
         }
 
-        /* 图标样式 */
-        summary::before {
-            content: "\f0e8"; /* FontAwesome 的箭头图标 */
-            font-family: "Font Awesome 5 Free"; /* 使用 FontAwesome 图标 */
-            font-weight: 900;
-            margin-right: 10px;
+        #container {
+            overflow-y: auto; /* 超出内容滚动 */
         }
+        #container::-webkit-scrollbar {
+            width: 8px;
+        }
+        #container::-webkit-scrollbar-thumb {
+            background-color: #888;
+            border-radius: 4px;
+        }
+        #container::-webkit-scrollbar-thumb:hover {
+            background-color: #555;
+        }
+        
 
-        /* 鼠标悬停效果 */
-            summary:hover {
-            background-color: #e0e0e0;
+        .line {
+            margin: 10px 0;
+            height: 1px;
+            background-color: #666;
+        }
+        
+        .output {
+            height: 40%;
+            display: flex;
+            flex-direction: column;
+            background-color: #303030;
+            border-radius: 6px;
+            border: 1px solid #444;
+        }
+        .bside{
+            height: 8px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="text">
-        <div>输入目录:</div>
-        <div id="inputPath" class="path-display">No directory selected</div>
-    </div>
-    <div id="container">
-        <details onclick="handleDetailsClick()" class="directory">
-            <summary><span class="icon folder-icon" />src</summary>
-            <div class="file" data-path="${fullPath}">
-                <span class="icon file-icon"></span>${name}
+    <div class="main">
+        <div class="btn">
+            <button id="selectInputButton"><i class="btniconc fa-solid fa-c"></i>输入目录</button>
+            <div class="toicon">
+            <i class="fa-solid fa-right-long"></i>
             </div>
-        </details>
+            <button id="selectOutputButton"><i class="btniconr fa-brands fa-rust"></i>输出目录</button> 
+        </div>
+        <div class="input">
+            <div class="inputdir">输入目录:<span id="inputPath" class="path-display">No directory selected</span></div>
+            <div class="inputmiddle">
+                <div id="container">
+                    <details onclick="handleDetailsClick()" class="directory">
+                        <summary><span class="icondir fa-solid fa-folder dir"></span>
+                        <span class="dirname">aaaaa</span></summary>
+                        <details onclick="handleDetailsClick()" class="directory">
+                            <summary><span class="icondir fa-solid fa-folder dir"></span>
+                            <span class="dirname">aaaaa</span></summary>
+                            <div class="file" data-path="${fullPath}">
+                                <span class="icon fa-solid fa-c c"></span><span class="filename">aaaaaa</span>
+                            </div>
+                        </details>
+                        <div class="file" data-path="${fullPath}">
+                            <span class="icon fa-solid fa-c c"></span><span class="filename">aaaaaa</span>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="tobtn"><button id="processButton" disabled>转换</button></div>
+        </div>
+        <div class="line"></div>
+        <div class="output">
+        <div class="inputdir">输出目录:<span id="outputPath" class="path-display">No directory selected</span></div>
+            <div class="inputmiddle">
+            <div id="out-container">${outputFileTree}</div>
+            </div>
+            <div class="bside"></div>
+        </div>
     </div>
-    <div class="section">
-        <button id="selectInputButton">选择输入目录</button>
-        <button id="processButton" disabled>转成 Rust </button>
-        <button id="selectOutputButton">选择输出目录</button>
-    </div>
-    <div class="out-text">
-    <div>输出目录:</div>
-    <div id="outputPath" class="path-display">No directory selected</div>
-    </div>
-    <div id="out-container">${outputFileTree}</div>
 
+
+    
+    
 
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -238,7 +320,7 @@
             const element = event.target;
             if (element.classList.contains('file')) {
                 const filePath = element.dataset.path;
-                document.querySelectorAll('#out-container .file.output-selected').forEach((file) => {
+                document.querySelectorAll('#out-container .file .filename.output-selected').forEach((file) => {
                     file.classList.remove('output-selected');
                 });
                 element.classList.add('output-selected');

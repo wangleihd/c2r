@@ -1,0 +1,76 @@
+{
+  "name": "c2r",
+  "displayName": "C2R - C/C++ to Rust Transpiler",
+  "description": "C/C++ to Rust Transpiler VSCode Plugin",
+  "version": "1.0.1",
+  "pulisher": "",
+  "author": "Richard Wang",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wangleihd/c2r.git"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "files": [
+    "icon.png",
+    "src",
+    "icons"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "c2r.c2rSart",
+        "title": "C2R Sart"
+      }
+    ],
+    "views": {
+      "c2r-sidebar-view": [
+        {
+          "type": "webview",
+          "id": "c2r-sidebar-view",
+          "name": "C2R"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "c2r-sidebar-view",
+          "title": "C/C++ to Rust",
+          "icon": "icon.png"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "yarn run compile && yarn run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.9",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.95.0",
+    "@typescript-eslint/eslint-plugin": "^8.10.0",
+    "@typescript-eslint/parser": "^8.7.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.13.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "axios": "^1.7.8",
+    "formdata-node": "^6.0.3"
+  }
+}

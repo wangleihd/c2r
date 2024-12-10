@@ -24,9 +24,11 @@ export async function sendToFile(
     }
 };
 
+// http://gpt.livstyle.cn/api/transcode/from_json_to
+
 export const sendToFile2 = (data: any) => {
     return request({
-        url: '/singFile',
+        url: '/transcode/from_json_to',
         method: 'post',
         data,
     });

@@ -2,7 +2,7 @@
   "name": "c2r",
   "displayName": "C2R - C/C++ to Rust Transpiler",
   "description": "C/C++ to Rust Transpiler VSCode Plugin",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "RichardWang",
   "author": "Richard Wang",
   "license": "MIT",

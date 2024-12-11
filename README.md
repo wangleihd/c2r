@@ -1,7 +1,3 @@
-以下是更新后的 `README.md` 文件，反映了新版本 `1.0.3` 的发布说明：  
-
----
-
 # c2r README  
 
 This is the README for the "C2R - C/C++ to Rust Transpiler" VS Code extension.  
@@ -30,6 +26,10 @@ This extension contributes the following settings:
 - Currently, the transpilation process might not handle complex C/C++ code structures perfectly.  
 
 ## Release Notes  
+
+### 1.0.5
+
+- update icon.png file.
 
 ### 1.0.4  
 

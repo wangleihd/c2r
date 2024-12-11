@@ -59,8 +59,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     if (inputDir) {
                         this.inputDirectory = inputDir;
                         this.input = inputDir;
-                        await this.showFileList();
-                        this.updateInput();
+                        this.updateCommandInputDir();
                     }
                     break;
                 case 'selectOutputDirectory':
@@ -68,8 +67,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     if (outputDir) {
                         this.outputDirectory = outputDir;
                         this.output = outputDir;
-                        await this.showFileList();
-                        this.updateOutput();
+                        this.updateCommandOutputDir();
                     }
                     break;
                 case 'processFiles':
@@ -87,9 +85,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         });
     }
 
-    private async showFileList() {
-
-
+    private async updateWebview(): Promise<void> {
         if (this.inputDirectory) {
             this.inputFileTree = await this.inputFileTreeFun();
         }
@@ -102,8 +98,33 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 this.inputFileTree,
                 this.outputFileTree,
             );
+            this._view.webview.postMessage({
+                command: 'showAllDir',
+                inputDirectory: this.inputDirectory,
+                outputDirectory: this.outputDirectory
+            });
         }
     }
+
+    private async updateCommandInputDir() {
+        if (this.inputDirectory) {
+            this.inputFileTree = await this.inputFileTreeFun();
+            if (this._view) {
+                this._view.webview.postMessage({ command: "updateCommandInputDir", dir: this.inputFileTree, directory: this.inputDirectory });
+            }
+        }
+    }
+
+    private async updateCommandOutputDir() {
+        if (this.outputDirectory) {
+            this.outputFileTree = await this.outputFileTreeFun();
+            if (this._view) {
+                this._view.webview.postMessage({ command: "updateCommandOutputDir", dir: this.outputFileTree, directory: this.outputDirectory });
+            }
+        }
+    }
+
+
     private async selectDirectory(): Promise<string | undefined> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         let defaultDirectory = '';
@@ -124,7 +145,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     private async simulateFileProcessing(inputDir: string, outputDir: string): Promise<void> {
         if (this._view) {
-            this._view.webview.postMessage({ command: 'startLoading' });
+            const command = 'startLoading';
+            this._view.webview.postMessage({ command });
         }
         vscode.window.showInformationMessage(`项目进行分析中...`);
         setTimeout(() => {
@@ -135,12 +157,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         const lists = this.processFilesInDirectory(inputdirPath);
         vscode.window.showInformationMessage(`项目进行转化中...`);
-        for (const item of lists) {
-            await this.processFileToAPI(inputdirPath, outputDirPath,item);
-        }
+        await Promise.all(lists.map((item) => this.processFileToAPI(inputdirPath, outputDirPath, item)));
         vscode.window.showInformationMessage(`项目转化完成！`);
         if (this._view) {
-            this._view.webview.postMessage({ command: 'stopLoading' });
+            const command = 'stopLoading';
+            this._view.webview.postMessage({ command });
         }
 
     }
@@ -156,7 +177,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         return includes;
     }
 
-    private processFilesInDirectory(inputDir: string, dir = "", lists: { projectName: string; fileName: string; includes: string[] }[] =[]): { projectName: string; fileName: string; includes: string[] }[] {
+    private processFilesInDirectory(inputDir: string, dir = "", lists: { projectName: string; fileName: string; includes: string[] }[] = []): { projectName: string; fileName: string; includes: string[] }[] {
         const files = fs.readdirSync(inputDir);
         files.forEach(file => {
             if (!file.startsWith('.')) {
@@ -174,17 +195,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                         includes,
                     });
                 }
-            }    
+            }
         });
         return lists;
     }
 
 
     private async processFileToAPI(inputDir: string, outputDir: string, item: { projectName: string; fileName: string; includes: string[] }): Promise<void> {
-        const context:{path: string; code: string}[] = [];
+        const context: { path: string; code: string }[] = [];
+        const outdir = path.join(this.currentWorkspaceRoot, this.outputDirectory);
         try {
             await Promise.all(item.includes.map(async (f) => {
-                const  lists = await this.findfilsInDir(inputDir, f);
+                const lists = await this.findfilsInDir(inputDir, f);
                 lists.forEach(element => {
                     const filePath = path.join(inputDir, element); // 获取完整路径
                     const fileContent = fs.readFileSync(filePath, 'utf-8'); // 读取文件内容
@@ -200,20 +222,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 });
                 const body = { // 输入目录的名称作为项目名
                     "projectName": item.projectName,
-                    "content":  context,
+                    "content": context,
                 };
-    
+
                 // 3. 调用 API
                 const response = await sendToFile2(body);
                 const { data } = response;
-    
-                if (data || data.status === 0) {
-                    if (data.output?.length > 0) {
-                        // 4. 处理 API 响应
-                        const output = path.join(outputDir, 'main');
-    
-                        await this.createFilesFromOutput(data.output, output);
-                    }
+                if (data) {
+                    const { content, projectName } = data;
+                    const output = path.join(outdir, item.projectName);
+                    await this.createFilesFromOutputSync(content, output);
                 } else {
                     throw new Error(`API请求失败：${response.statusText}`);
                 }
@@ -236,15 +254,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     const findname = dir ? path.join(dir, file) : file;
                     lists.push(findname);
                 }
-            }    
-        });        
+            }
+        });
         return lists;
     }
 
     // find file in input dir, return the file path
-    private async createFilesFromOutput(output: { path: string; code: string }[], outputDir: string) {
+    private createFilesFromOutputSync(output: { path: string; code: string }[], outputDir: string): void {
         try {
-            await this.clearOutputDir(outputDir);
+            this.clearOutputDirSync(outputDir); // 同步清理输出目录
+
             for (const file of output) {
                 const filePath = path.join(outputDir, file.path);
 
@@ -255,49 +274,47 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 }
 
                 // 创建文件并写入内容
-                await fs.promises.writeFile(filePath, file.code, 'utf8');
+                fs.writeFileSync(filePath, file.code, 'utf8');
             }
-            this.updateWebview();
+
+            this.updateOutput(); // 更新视图
         } catch (error) {
             console.error('创建文件出错:', error);
             vscode.window.showErrorMessage(`创建文件失败: ${error}`);
         }
     }
 
-    private async clearOutputDir(outputDir: string) {
-        return new Promise<void>((resolve, reject) => {
-            fs.rm(outputDir, { recursive: true, force: true }, (err) => {
-                if (err) {
-                    console.error('清除目录出错:', err.message);
-                    return reject(err);
+    private clearOutputDirSync(outputDir: string): void {
+        if (!fs.existsSync(outputDir)) {
+            console.log(`目录 ${outputDir} 不存在，无需清除。`);
+            return; // 如果目录不存在，直接返回
+        }
+
+        try {
+            // 遍历目录并递归删除文件和子目录
+            const deleteFolderRecursive = (dir: string): void => {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        deleteFolderRecursive(fullPath); // 递归删除子目录
+                    } else {
+                        fs.unlinkSync(fullPath); // 删除文件
+                    }
                 }
-                console.log(`目录 ${outputDir} 已成功清除。`);
-                this.updateWebview();
-                resolve();
-            });
-        });
-    }
-    private async updateWebview(): Promise<void> {
-        await this.showFileList();
-        this.updateOutput();
-    }
+                fs.rmdirSync(dir); // 删除空目录
+            };
 
-
-    private updateInput(): void {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'updateinput',
-                inputDirectory: this.inputDirectory
-            });
+            deleteFolderRecursive(outputDir);
+            console.log(`目录 ${outputDir} 已成功清除。`);
+            this.updateOutput(); // 更新视图
+        } catch (error) {
+            vscode.window.showErrorMessage(`删除失败: ${error}`);
         }
     }
-    private updateOutput(): void {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'updateoutput',
-                outputDirectory: this.outputDirectory
-            });
-        }
+
+    private async updateOutput(): Promise<void> {
+        await this.updateCommandOutputDir();
     }
 
     private async inputFileTreeFun(): Promise<string> {
@@ -399,9 +416,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     height: 100vh;
                     overflow: hidden;
                 }
-                .main {
-                }
-                #out-container {
+t                 #out-container {
                     overflow-y: auto; /* 超出内容滚动 */
                 }
                 #out-container::-webkit-scrollbar {
@@ -691,16 +706,33 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     vscode.postMessage({ command: 'processFiles' });
                 });
 
+
                 window.addEventListener('message', (event) => {
-                    const { command, inputDirectory } = event.data;
-                    if (command === 'updateinput') {
+                    const { command } = event.data;
+                    if (command === 'showAllDir') {
+                        const {inputDirectory, outputDirectory} = event.data;
                         inputPath.textContent = inputDirectory || 'No directory selected';
+                        outputPath.textContent = outputDirectory || 'No directory selected';
                     }
                 });
                 window.addEventListener('message', (event) => {
-                    const { command, outputDirectory } = event.data;
-                    if (command === 'updateoutput') {
-                        outputPath.textContent = outputDirectory || 'No directory selected';
+                    const { command } = event.data;
+                    if (command ==='updateCommandOutputDir') {
+                        const {dir, directory} = event.data;
+                        outputFileTree = dir;
+                        const outContainer = document.getElementById('out-container');
+                        outContainer.innerHTML = outputFileTree;
+                        outputPath.textContent = directory || 'No directory selected';
+                    } 
+                });
+                window.addEventListener('message', (event) => {
+                    const { command } = event.data;
+                    if (command ==='updateCommandInputDir') {
+                        const {dir, directory} = event.data;
+                        inputFileTree = dir;
+                        const container = document.getElementById('container');
+                        container.innerHTML = inputFileTree;
+                        inputPath.textContent = directory || 'No directory selected';
                     }
                 });
 
